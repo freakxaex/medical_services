@@ -1,57 +1,62 @@
+from flask import Flask, render_template, request, jsonify
 import requests
 import xmltodict
 from datetime import datetime
 
-def get_opened_pharmacies(city, district):
-    # 1. API 설정
-    url = 'http://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire'
-    service_key = '자신의_디코딩_인증키_입력' # 여기에 발급받은 Decoding 인증키를 넣으세요
+app = Flask(__name__)
+
+# 공공데이터 API 설정
+API_URL = 'http://apis.data.go.kr/B552657/ErmctInsttInfoInqireService/getParmacyListInfoInqire'
+SERVICE_KEY = '1a5c480046f5f7743dd14af612dfe3124661fd0307929f4ce7043f0d7dc55961' # 여기에 인증키 입력
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/api/pharmacies')
+def get_pharmacies():
+    city = request.args.get('city', '부산광역시')
+    district = request.args.get('district', '수영구')
     
     params = {
-        'serviceKey': service_key,
-        'Q0': city,      # 주소(시도)
-        'Q1': district,  # 주소(시군구)
-        'numOfRows': 50  # 가져올 결과 수
+        'serviceKey': SERVICE_KEY,
+        'Q0': city,
+        'Q1': district,
+        'numOfRows': 100
     }
 
     try:
-        response = requests.get(url, params=params)
-        # XML 데이터를 딕셔너리로 변환
-        data = xmltodict.parse(response.content)
-        items = data['response']['body']['items']['item']
+        response = requests.get(API_URL, params=params)
+        dict_data = xmltodict.parse(response.content)
+        items = dict_data['response']['body']['items']
         
-        # 현재 요일 및 시간 정보 (1:월, 2:화 ... 7:일)
+        if not items:
+            return jsonify([])
+
+        item_list = items['item']
+        if isinstance(item_list, dict): # 결과가 1개일 경우 처리
+            item_list = [item_list]
+
         now = datetime.now()
-        weekday = now.isoweekday() 
-        current_time = int(now.strftime('%H%M')) # 예: 1830
+        weekday = now.isoweekday() # 1:월, ..., 7:일
+        current_time = int(now.strftime('%H%M'))
 
-        opened_list = []
-
-        for item in items:
-            # 해당 요일의 영업 시작/종료 시간 키값 생성 (예: dutyTime1s, dutyTime1e)
+        opened = []
+        for item in item_list:
             start_key = f'dutyTime{weekday}s'
             end_key = f'dutyTime{weekday}e'
 
             if start_key in item and end_key in item:
-                start_time = int(item[start_key])
-                end_time = int(item[end_key])
-
-                # 현재 시간이 영업 시간 내에 있는지 확인
-                if start_time <= current_time <= end_time:
-                    opened_list.append({
+                if int(item[start_key]) <= current_time <= int(item[end_key]):
+                    opened.append({
                         'name': item['dutyName'],
                         'address': item['dutyAddr'],
                         'tel': item['dutyTel1'],
-                        'end_time': item[end_key]
+                        'endTime': item[end_key]
                     })
-        
-        return opened_list
+        return jsonify(opened)
+    except:
+        return jsonify([])
 
-    except Exception as e:
-        print(f"오류 발생: {e}")
-        return []
-
-# 실행 예시
-pharmacies = get_opened_pharmacies("부산광역시", "수영구")
-for p in pharmacies:
-    print(f"[{p['name']}] 종료시간: {p['end_time']} | 주소: {p['address']}")
+if __name__ == '__main__':
+    app.run(debug=True)
