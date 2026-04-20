@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>현재 영업 중 약국 조회</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .pharmacy-card { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 8px; }
+        .name { font-weight: bold; font-size: 1.2em; color: #2c3e50; }
+        .status { color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🏥 현재 문 연 약국 찾기</h1>
+    <button onclick="loadPharmacies()">수영구 약국 조회하기</button>
+    <div id="result" style="margin-top: 20px;"></div>
+
+    <script>
+        async function loadPharmacies() {
+            const res = await fetch('/api/pharmacies?city=부산광역시&district=수영구');
+            const data = await res.json();
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+
+            if (data.length === 0) {
+                resultDiv.innerHTML = '현재 운영 중인 약국이 없습니다.';
+                return;
+            }
+
+            data.forEach(p => {
+                resultDiv.innerHTML += `
+                    <div class="pharmacy-card">
+                        <div class="name">${p.name} <span class="status">[영업중]</span></div>
+                        <div>주소: ${p.address}</div>
+                        <div>전화: ${p.tel}</div>
+                        <div>오늘 마감: ${p.endTime.substring(0,2)}:${p.endTime.substring(2,4)}</div>
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
